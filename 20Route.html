@@ -80,13 +80,13 @@
 
   <!-- Panel 1: Top 10 stations ranked by NUMBER of low-battery e-bikes, with a Google Maps driving link -->
   <div class="note panel" id="routeSection">
-    <strong>Top 10 stations with most e-bikes below 20% battery — driving route</strong>
+    <strong>Top 10 stations with most e-bikes below 20% battery</strong>
     <div id="routePanel"></div>
   </div>
 
   <!-- Panel 2: Same set of low-battery stations, but ordered by straight-line distance from the start point -->
   <div class="note panel" id="distanceSection">
-    <strong>Same stations, ordered nearest-neighbor (each stop closest to the previous one)</strong>
+    <strong>Stations, ordered</strong>
     <div id="distancePanel"></div>
   </div>
 
@@ -130,7 +130,7 @@
 let stations = [];
 
 // Current table sort column + direction (-1 = descending, 1 = ascending).
-let sortKey = 'electricBikesAvailable', sortDir = -1;
+let sortKey = 'lowCount', sortDir = -1;
 
 // Fixed starting point for route/distance calculations (provided by user).
 const START_COORD = [39.916190, -75.183320];           // [lat, lon] for Leaflet
