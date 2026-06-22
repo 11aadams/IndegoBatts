@@ -70,9 +70,9 @@
 
 
 <!-- ============================ SUMMARY CARDS ============================ -->
-<!-- Filled in by render(): total stations, total bikes, total e-bikes, avg battery, count below 30% -->
+<!-- Filled in by render(): total stations, total bikes, total e-bikes, avg battery, count below 20% -->
 <div class="summary" id="summary"></div>
-<!-- Filled in by render(): % of e-bikes above/below the 15% battery threshold -->
+<!-- Filled in by render(): % of e-bikes above/below the 20% battery threshold -->
 <div class="summary" id="threshold"></div>
 
 <!-- ============================ LOW-BATTERY PANELS + MAP ============================ -->
@@ -80,7 +80,7 @@
 
   <!-- Panel 1: Top 10 stations ranked by NUMBER of low-battery e-bikes, with a Google Maps driving link -->
   <div class="note panel" id="routeSection">
-    <strong>Top 10 stations with most e-bikes below 15% battery — driving route</strong>
+    <strong>Top 10 stations with most e-bikes below 20% battery — driving route</strong>
     <div id="routePanel"></div>
   </div>
 
@@ -113,7 +113,7 @@
       <th onclick="sortBy('bikesAvailable')">Total Bikes</th>
       <th onclick="sortBy('electricBikesAvailable')">E-Bikes</th>
       <th onclick="sortBy('avgBattery')">Avg E-Bike Battery</th>
-      <th onclick="sortBy('lowCount')">E-Bikes &lt;15%</th>
+      <th onclick="sortBy('lowCount')">E-Bikes &lt;20%</th>
       <th>Per-Bike Battery (%)</th>
     </tr>
   </thead>
@@ -147,7 +147,7 @@ let map, markerLayer;
 // Returns a CSS class name based on battery percentage, used to color the pill badges.
 function batteryClass(b) {
   if (b >= 60) return 'b-high';
-  if (b >= 30) return 'b-mid';
+  if (b >= 20) return 'b-mid';
   return 'b-low';
 }
 
@@ -188,8 +188,8 @@ async function loadData() {
         ? Math.round(ebikes.reduce((a,b)=>a+b.battery,0) / ebikes.length)
         : null;
 
-      // Count of e-bikes at this station with battery below 15%.
-      const lowCount = (p.bikes || []).filter(b => b.isElectric && b.battery !== null && b.battery < 15).length;
+      // Count of e-bikes at this station with battery below 20%.
+      const lowCount = (p.bikes || []).filter(b => b.isElectric && b.battery !== null && b.battery < 20).length;
 
       return {
         id: p.id,
@@ -235,25 +235,25 @@ function render() {
   const allBatteries = stations.flatMap(s => s.bikes.filter(b=>b.isElectric && b.battery!==null).map(b=>b.battery));
 
   const overallAvg = allBatteries.length ? Math.round(allBatteries.reduce((a,b)=>a+b,0)/allBatteries.length) : 0;
-  const lowBattery = allBatteries.filter(b=>b<30).length;
+  const lowBattery = allBatteries.filter(b=>b<20).length;
 
   document.getElementById('summary').innerHTML = `
     <div class="card"><div class="num">${stations.length}</div><div class="label">Stations</div></div>
     <div class="card"><div class="num">${totalBikes}</div><div class="label">Total Bikes Available</div></div>
     <div class="card"><div class="num">${totalEbikes}</div><div class="label">Total E-Bikes</div></div>
     <div class="card"><div class="num">${overallAvg}%</div><div class="label">System-wide Avg E-Bike Battery</div></div>
-    <div class="card"><div class="num">${lowBattery}</div><div class="label">E-Bikes Below 30% Battery</div></div>
+    <div class="card"><div class="num">${lowBattery}</div><div class="label">E-Bikes Below 20% Battery</div></div>
   `;
 
-  // --- 15% threshold breakdown cards ---
-  const below15 = allBatteries.filter(b=>b<15).length;
-  const above15 = allBatteries.length - below15;
-  const pctBelow = allBatteries.length ? (below15/allBatteries.length*100).toFixed(1) : '0.0';
-  const pctAbove = allBatteries.length ? (above15/allBatteries.length*100).toFixed(1) : '0.0';
+  // --- 20% threshold breakdown cards ---
+  const below20 = allBatteries.filter(b=>b<20).length;
+  const above20 = allBatteries.length - below20;
+  const pctBelow = allBatteries.length ? (below20/allBatteries.length*100).toFixed(1) : '0.0';
+  const pctAbove = allBatteries.length ? (above20/allBatteries.length*100).toFixed(1) : '0.0';
 
   document.getElementById('threshold').innerHTML = `
-    <div class="card"><div class="num">${pctBelow}%</div><div class="label">E-Bikes Below 15% Battery (${below15})</div></div>
-    <div class="card"><div class="num">${pctAbove}%</div><div class="label">E-Bikes Above 15% Battery (${above15})</div></div>
+    <div class="card"><div class="num">${pctBelow}%</div><div class="label">E-Bikes Below 20% Battery (${below20})</div></div>
+    <div class="card"><div class="num">${pctAbove}%</div><div class="label">E-Bikes Above 20% Battery (${above20})</div></div>
   `;
 
   // --- Build the "top 10 low-battery stations" base list (shared by both panels) ---
@@ -323,8 +323,8 @@ function render() {
     updateMap(stationLowByCount);
 
   } else {
-    document.getElementById('routePanel').innerHTML = '<p>No stations currently have e-bikes below 15% battery.</p>';
-    document.getElementById('distancePanel').innerHTML = '<p>No stations currently have e-bikes below 15% battery.</p>';
+    document.getElementById('routePanel').innerHTML = '<p>No stations currently have e-bikes below 20% battery.</p>';
+    document.getElementById('distancePanel').innerHTML = '<p>No stations currently have e-bikes below 20% battery.</p>';
     updateMap([]); // clear any old markers
   }
 
@@ -397,7 +397,7 @@ function updateMap(stationList) {
   stationList.forEach((s, i) => {
     L.marker([s.lat, s.lon])
       .addTo(markerLayer)
-      .bindPopup(`#${i+1}: ${s.name} (Station ${s.id})<br>${s.lowCount} e-bike(s) &lt;15%`);
+      .bindPopup(`#${i+1}: ${s.name} (Station ${s.id})<br>${s.lowCount} e-bike(s) &lt;20%`);
   });
 
   // Zoom/pan the map to fit the start point + all station markers.
