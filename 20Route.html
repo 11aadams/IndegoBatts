@@ -42,8 +42,8 @@
   /* ---------- Per-bike battery "pill" badges ---------- */
   .pill { display: inline-block; padding: 2px 6px; margin: 2px; border-radius: 10px; font-size: 11px; color: #fff; font-weight: 600; min-width: 30px; text-align: center; }
   .b-high { background: #2e9e3f; }   /* battery >= 60% : green  */
-  .b-mid  { background: #e0a800; }   /* 30% <= battery < 60% : yellow */
-  .b-low  { background: #d9534f; }   /* battery < 30% : red */
+  .b-mid  { background: #e0a800; }   /* 20% <= battery < 60% : yellow */
+  .b-low  { background: #d9534f; }   /* battery < 20% : red */
   .b-unavail { opacity: 0.45; text-decoration: line-through; } /* bike exists but isAvailable === false (not rentable) */
 
   .toggle-btn { background: none; border: none; color: #00b6e3; cursor: pointer; font-size: 12px; text-decoration: underline; padding: 0; }
@@ -58,20 +58,16 @@
 <!-- ============================ HEADER ============================ -->
 <header>
   <h1>Ride Indego – Live Station, E-Bike &amp; Battery Dashboard</h1>
-  <p>Data source: https://bts-status.bicycletransit.workers.dev/phl (unofficial Bicycle Transit Systems status feed)</p>
+  <!-- <p>Data source: https://bts-status.bicycletransit.workers.dev/phl (unofficial Bicycle Transit Systems status feed)</p>  -->
 </header>
 
-<!-- Explanatory note about where the data comes from and its limitations -->
+<!-- Explanatory note about where the data comes from and its limitations --><!-- 
 <div class="note">
   <strong>Endpoint note:</strong> The official GBFS feed (<code>gbfs.bcycle.com/bcycle_indego/gbfs.json</code> → station_information / station_status) does <em>not</em> expose per-bike battery levels. This dashboard instead uses the unofficial endpoint <code>https://bts-status.bicycletransit.workers.dev/phl</code>, which returns per-station <code>bikes[]</code> arrays including <code>isElectric</code>, <code>isAvailable</code>, and <code>battery</code> (0-100, null for classic bikes). This endpoint is undocumented/internal — it may change or be discontinued without notice.
 </div>
+  -->
 
-<!-- ============================ CONTROLS ============================ -->
-<div class="controls">
-  <input id="search" type="text" placeholder="Search station name or address...">
-  <button onclick="loadData()">Refresh Data</button>
-  <span class="status" id="status">Loading...</span>
-</div>
+
 
 <!-- ============================ SUMMARY CARDS ============================ -->
 <!-- Filled in by render(): total stations, total bikes, total e-bikes, avg battery, count below 30% -->
@@ -97,6 +93,14 @@
   <!-- Leaflet map showing the start point + markers for the low-battery stations -->
   <div id="map" class="panel" style="height: 400px; border-radius: 8px;"></div>
 </div>
+
+<!-- ============================ CONTROLS ============================ -->
+<div class="controls">
+  <input id="search" type="text" placeholder="Search station name or address...">
+  <button onclick="loadData()">Refresh Data</button>
+  <span class="status" id="status">Loading...</span>
+</div>
+  
 
 <!-- ============================ MAIN STATION TABLE ============================ -->
 <div class="table-wrap">
