@@ -51,6 +51,20 @@
   /* ---------- Side-by-side "low battery" panels + map ---------- */
   .panels-row { display: flex; gap: 16px; margin: 0 24px 24px; flex-wrap: wrap; }
   .panel { flex: 1; min-width: 280px; margin: 0; }
+  
+  .button {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #007BFF;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+  }
+  .button:hover {
+    background-color: #0056b3;
+  }
 </style>
 </head>
 <body>
@@ -316,7 +330,7 @@ function render() {
     if (nnWaypoints) nnUrl += `&waypoints=${encodeURIComponent(nnWaypoints)}`;
 
     distanceHtml += `<p>Starting point fixed at <code>${START_STR}</code>.</p>`;
-    distanceHtml += `<p><a href="${nnUrl}" target="_blank">Open driving route in Google Maps</a></p>`;
+    distanceHtml += `<p><a href="${nnUrl}" target="_blank" class="button">Google Maps Route</a></p>`;
     document.getElementById('distancePanel').innerHTML = distanceHtml;
 
     // Update the map markers (uses the count-ordered list; numbering reflects route order).
