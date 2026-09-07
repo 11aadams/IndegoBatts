@@ -52,7 +52,7 @@
   .slider-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: #f0f8ff; border-bottom: 1px solid #c8e4f8; }
   .slider-wrap label { font-size: 13px; font-weight: 600; color: #00263a; white-space: nowrap; }
   input[type=range] { width: 180px; accent-color: #00b6e3; cursor: pointer; padding: 0; border: none; background: none; }
-  .slider-val { font-size: 15px; font-weight: 700; color: #d9534f; min-width: 38px; }
+  .slider-val { font-size: px; font-weight: 700; color: #d9534f; min-width: 38px; }
   .slider-wrap button { padding: 6px 14px; font-size: 13px; }
 
   /* ---------- SVG battery icon in the slider area ---------- */
@@ -81,7 +81,7 @@
 
 <!-- ============================ BATTERY THRESHOLD SLIDER ============================ -->
 <!--
-  The slider lets the user pick what "low battery" means (default 15%).
+  The slider lets the user pick what "low battery" means (default 20%).
   The battery diagram SVG updates live as the slider moves to show the
   current level bracket visually (0-20%=1 bar, 21-40%=2, 41-60%=3, 61-80%=4, 81-100%=5).
   Clicking "Apply" re-runs render() with the new threshold.
@@ -97,7 +97,7 @@
 <!-- ============================ SUMMARY CARDS ============================ -->
 <!-- Filled in by render(): total stations, total bikes, total e-bikes, avg battery, count below 30% -->
 <div class="summary" id="summary"></div>
-<!-- Filled in by render(): % of e-bikes above/below the 15% battery threshold -->
+<!-- Filled in by render(): % of e-bikes above/below the 20% battery threshold -->
 <div class="summary" id="threshold"></div>
 
 <!-- ============================ LOW-BATTERY PANELS + MAP ============================ -->
@@ -105,7 +105,7 @@
 
   <!-- Panel 1: Top 10 stations ranked by NUMBER of low-battery e-bikes, with a Google Maps driving link -->
   <div class="note panel" id="routeSection">
-    <strong>Top 10 stations with most e-bikes below 15% battery — driving route</strong>
+    <strong>Top 10 stations with most e-bikes below 20% battery — driving route</strong>
     <div id="routePanel"></div>
   </div>
 
@@ -141,9 +141,9 @@
     <span id="battLabel" style="font-size:11px;color:#555;min-width:70px;"></span>
   </div>
 
-  <input type="range" id="battSlider" min="1" max="100" value="15"
+  <input type="range" id="battSlider" min="1" max="100" value="20"
          oninput="onSliderMove(this.value)">
-  <span class="slider-val" id="sliderDisplay">15%</span>
+  <span class="slider-val" id="sliderDisplay">20%</span>
   <button onclick="applyThreshold()">Apply</button>
 </div>
 
@@ -167,7 +167,7 @@
       <th onclick="sortBy('bikesAvailable')">Total Bikes</th>
       <th onclick="sortBy('electricBikesAvailable')">E-Bikes</th>
       <th onclick="sortBy('avgBattery')">Avg E-Bike Battery</th>
-      <th data-col="lowCount" onclick="sortBy('lowCount')">E-Bikes &lt;15%</th>
+      <th data-col="lowCount" onclick="sortBy('lowCount')">E-Bikes &lt;20%</th>
       <th>Per-Bike Battery (%)</th>
     </tr>
   </thead>
@@ -186,9 +186,9 @@ let stations = [];
 // Current table sort column + direction (-1 = descending, 1 = ascending).
 let sortKey = 'lowCount', sortDir = -1;
 
-// The "low battery" threshold (%). Controlled by the slider; default 15.
+// The "low battery" threshold (%). Controlled by the slider; default 20.
 // All panels and table columns use this value instead of a hardcoded number.
-let batteryThreshold = 15;
+let batteryThreshold = 20;
 
 // Fixed starting point for route/distance calculations (provided by user).
 const START_COORD = [39.916190, -75.183320];           // [lat, lon] for Leaflet
@@ -346,15 +346,15 @@ function render() {
     <div class="card"><div class="num">${lowBattery}</div><div class="label">E-Bikes Below 30% Battery</div></div>
   `;
 
-  // --- 15% threshold breakdown cards (uses current batteryThreshold) ---
-  const below15 = allBatteries.filter(b=>b<batteryThreshold).length;
-  const above15 = allBatteries.length - below15;
-  const pctBelow = allBatteries.length ? (below15/allBatteries.length*100).toFixed(1) : '0.0';
-  const pctAbove = allBatteries.length ? (above15/allBatteries.length*100).toFixed(1) : '0.0';
+  // --- 20 threshold breakdown cards (uses current batteryThreshold) ---
+  const below20 = allBatteries.filter(b=>b<batteryThreshold).length;
+  const above20 = allBatteries.length - below20;
+  const pctBelow = allBatteries.length ? (below20/allBatteries.length*100).toFixed(1) : '0.0';
+  const pctAbove = allBatteries.length ? (above20/allBatteries.length*100).toFixed(1) : '0.0';
 
   document.getElementById('threshold').innerHTML = `
-    <div class="card"><div class="num">${pctBelow}%</div><div class="label">E-Bikes Below ${batteryThreshold}% Battery (${below15})</div></div>
-    <div class="card"><div class="num">${pctAbove}%</div><div class="label">E-Bikes Above ${batteryThreshold}% Battery (${above15})</div></div>
+    <div class="card"><div class="num">${pctBelow}%</div><div class="label">E-Bikes Below ${batteryThreshold}% Battery (${below20})</div></div>
+    <div class="card"><div class="num">${pctAbove}%</div><div class="label">E-Bikes Above ${batteryThreshold}% Battery (${above20})</div></div>
   `;
 
   // --- Build the "top 10 low-battery stations" base list (shared by both panels) ---
@@ -433,8 +433,8 @@ function render() {
     updateMap(stationLowByCount);
 
   } else {
-    document.getElementById('routePanel').innerHTML = '<p>No stations currently have e-bikes below 15% battery.</p>';
-    document.getElementById('distancePanel').innerHTML = '<p>No stations currently have e-bikes below 15% battery.</p>';
+    document.getElementById('routePanel').innerHTML = '<p>No stations currently have e-bikes below 20% battery.</p>';
+    document.getElementById('distancePanel').innerHTML = '<p>No stations currently have e-bikes below 20% battery.</p>';
     updateMap([]); // clear any old markers
   }
 
@@ -524,7 +524,7 @@ function updateMap(stationList) {
 document.getElementById('search').addEventListener('input', render);
 
 initMap();          // set up the Leaflet map
-onSliderMove(15);   // draw the battery diagram at the default threshold
+onSliderMove(20);   // draw the battery diagram at the default threshold
 loadData();         // initial data fetch
 setInterval(loadData, 60000); // auto-refresh every 60 seconds
 </script>
