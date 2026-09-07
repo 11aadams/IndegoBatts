@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Indego Unavailable Bikes Dashboard</title>
+
+<!-- Leaflet library for the embedded map (CSS + JS from CDN) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+<style>
+  /* ---------- Page-wide layout / typography ---------- */
+  body { font-family: -apple-system, Arial, sans-serif; margin: 0; background: #f4f5f7; color: #1a1a1a; }
+  header { background: #00263a; color: #fff; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #b8c4cc; }
+
+  /* ---------- Top controls bar (search box, refresh button, status text) ---------- */
+  .controls { padding: 12px 24px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  input, button { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+  button { background: #00b6e3; color: #fff; border: none; cursor: pointer; font-weight: 600; }
+  button:hover { background: #0095bd; }
+
+  /* ---------- Summary "stat card" rows (Stations / Total Bikes / etc.) ---------- */
+  .summary { display: flex; gap: 16px; padding: 16px 24px; flex-wrap: wrap; }
+  .card { background: #fff; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-width: 140px; }
+  .card .num { font-size: 26px; font-weight: 700; }
+  .card .label { font-size: 12px; color: #666; }
+
+  /* ---------- Main station table ---------- */
+  table { width: 100%; border-collapse: collapse; background: #fff; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid #eee; text-align: left; font-size: 13px; vertical-align: top; }
+  th { background: #f0f2f4; cursor: pointer; position: sticky; top: 0; } /* sticky header + clickable for sorting */
+  tr:hover { background: #f9fbfc; }
+  .unavail-count { font-weight: 700; color: #d9534f; }
+  .table-wrap { max-height: 65vh; overflow-y: auto; margin: 0 24px 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* ---------- Informational note boxes ---------- */
+  .note { padding: 12px 24px; font-size: 12px; color: #666; background: #fff8e1; border-top: 1px solid #f0e0a0; border-bottom: 1px solid #f0e0a0; }
+  .status { font-size: 12px; padding: 0 24px; color: #777; }
+
+  /* ---------- Per-bike availability "pill" badges ---------- */
+  .pill { display: inline-block; padding: 2px 6px; margin: 2px; border-radius: 10px; font-size: 11px; color: #fff; font-weight: 600; min-width: 30px; text-align: center; }
+  .p-avail   { background: #2e9e3f; }               /* bike is available to rent */
+  .p-unavail { background: #d9534f; }                /* bike is docked but NOT available (checked out / reserved / service) */
+  .p-elec::after { content: " \26A1"; }               /* small lightning bolt suffix for e-bikes */
+
+  .toggle-btn { background: none; border: none; color: #00b6e3; cursor: pointer; font-size: 12px; text-decoration: underline; padding: 0; }
+
+  /* ---------- Side-by-side "most unavailable" panels + map ---------- */
+  .panels-row { display: flex; gap: 16px; margin: 0 24px 24px; flex-wrap: wrap; }
+  .panel { flex: 1; min-width: 280px; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ============================ HEADER ============================ -->
+<header>
+  <h1>Ride Indego – Unavailable Bikes Dashboard</h1>
+</header>
+
+
+<!-- ============================ SUMMARY CARDS ============================ -->
+<!-- Filled in by render(): total stations, total bikes, total e-bikes, total unavailable, % unavailable -->
+<div class="summary" id="summary"></div>
+
+<!-- ============================ TOP-10 PANELS + MAP ============================ -->
+<div class="panels-row">
+
+  <!-- Panel 1: Top 10 stations ranked by NUMBER of unavailable bikes, with a Google Maps driving link -->
+  <div class="note panel" id="routeSection">
+    <strong>Top 10 stations with most unavailable bikes — driving route</strong>
+    <div id="routePanel"></div>
+  </div>
+
+  <!-- Panel 2: Same set of stations, but ordered nearest-neighbor from the start point -->
+  <div class="note panel" id="distanceSection">
+    <strong>Same stations, ordered nearest-neighbor (each stop closest to the previous one)</strong>
+    <div id="distancePanel"></div>
+  </div>
+
+  <!-- Leaflet map showing the start point + markers for the top unavailable-bike stations -->
+  <div id="map" class="panel" style="height: 400px; border-radius: 8px;"></div>
+</div>
+
+
+<!-- ============================ CONTROLS ============================ -->
+<div class="controls">
+  <input id="search" type="text" placeholder="Search station name or address...">
+  <button onclick="loadData()">Refresh Data</button>
+  <span class="status" id="status">Loading...</span>
+</div>
+
+
+<!-- ============================ MAIN STATION TABLE ============================ -->
+<div class="table-wrap">
+<table id="stationTable">
+  <thead>
+    <tr>
+      <!-- Each header is clickable and calls sortBy() with the corresponding data field -->
+      <th onclick="sortBy('id')">Station ID</th>
+      <th onclick="sortBy('name')">Station Name</th>
+      <th onclick="sortBy('totalBikes')">Total Bikes</th>
+      <th onclick="sortBy('electricBikesAvailable')">E-Bikes</th>
+      <th onclick="sortBy('docksAvailable')">Docks Available</th>
+      <th onclick="sortBy('unavailableCount')">Unavailable Bikes</th>
+      <th>Per-Bike Status</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+</div>
+
+<script>
+/* =================================================================
+   GLOBAL STATE
+   ================================================================= */
+
+// Holds the processed list of station objects after each data load.
+let stations = [];
+
+// Current table sort column + direction (-1 = descending, 1 = ascending).
+// Defaults to sorting by unavailable bike count, most first.
+let sortKey = 'unavailableCount', sortDir = -1;
+
+// Fixed starting point for route/distance calculations (same as the battery dashboard).
+const START_COORD = [39.916190, -75.183320];           // [lat, lon] for Leaflet
+const START_STR = '39.916190,-75.183320';              // "lat,lon" string for Google Maps URL
+
+// Leaflet map objects, initialized once in initMap().
+let map, markerLayer;
+
+
+/* =================================================================
+   HELPER FUNCTIONS
+   ================================================================= */
+
+// Calculates great-circle ("as the crow flies") distance in miles between two
+// lat/lon points using the Haversine formula. Used to sort the distance panel.
+function haversineMiles(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Earth's radius in miles
+  const toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+
+/* =================================================================
+   DATA LOADING
+   ================================================================= */
+
+// Fetches the live station/bike status feed, transforms it into a simpler
+// array of station objects (`stations`), and triggers a re-render.
+async function loadData() {
+  document.getElementById('status').textContent = 'Loading...';
+  try {
+    const res = await fetch('https://bts-status.bicycletransit.workers.dev/phl');
+    const data = await res.json(); // GeoJSON FeatureCollection
+
+    stations = data.features.map(f => {
+      const p = f.properties;
+      const bikes = p.bikes || [];
+
+      // A bike counts as "unavailable" when it's physically docked here but
+      // isAvailable === false (checked out, reserved, or flagged for service).
+      const unavailableCount = bikes.filter(b => b.isAvailable === false).length;
+
+      return {
+        id: p.id,
+        name: p.name,
+        lat: p.latitude,
+        lon: p.longitude,
+        totalBikes: bikes.length,
+        bikesAvailable: p.bikesAvailable,
+        electricBikesAvailable: p.electricBikesAvailable,
+        docksAvailable: p.docksAvailable,
+        bikes: bikes,               // full per-bike array (used for the pill badges)
+        unavailableCount: unavailableCount
+      };
+    });
+
+    document.getElementById('status').textContent =
+      'Last updated: ' + new Date(data.last_updated).toLocaleTimeString();
+
+    render();
+  } catch (e) {
+    document.getElementById('status').textContent = 'Error loading data: ' + e.message;
+  }
+}
+
+
+/* =================================================================
+   RENDERING
+   ================================================================= */
+
+// Rebuilds every dynamic part of the page from the current `stations` array:
+// summary cards, top-10 panels, map, and main table.
+function render() {
+
+  // --- Filter + sort the main table rows based on search box + current sort column ---
+  const q = document.getElementById('search').value.toLowerCase();
+  let rows = stations.filter(s => s.name.toLowerCase().includes(q));
+  rows.sort((a,b) => (a[sortKey] > b[sortKey] ? 1 : -1) * sortDir);
+
+  // --- System-wide totals for the summary cards ---
+  const totalBikes = stations.reduce((a,s)=>a+s.totalBikes,0);
+  const totalEbikes = stations.reduce((a,s)=>a+s.electricBikesAvailable,0);
+  const totalUnavailable = stations.reduce((a,s)=>a+s.unavailableCount,0);
+  const pctUnavailable = totalBikes ? (totalUnavailable/totalBikes*100).toFixed(1) : '0.0';
+
+  document.getElementById('summary').innerHTML = `
+    <div class="card"><div class="num">${stations.length}</div><div class="label">Stations</div></div>
+    <div class="card"><div class="num">${totalBikes}</div><div class="label">Total Bikes Docked</div></div>
+    <div class="card"><div class="num">${totalEbikes}</div><div class="label">Total E-Bikes Available</div></div>
+    <div class="card"><div class="num">${totalUnavailable}</div><div class="label">Total Unavailable Bikes</div></div>
+    <div class="card"><div class="num">${pctUnavailable}%</div><div class="label">System-wide % Unavailable</div></div>
+  `;
+
+  // --- Build the "top 10 most-unavailable stations" base list (shared by both panels) ---
+  const stationTop10 = stations
+    .filter(s => s.unavailableCount > 0)
+    .sort((a,b) => b.unavailableCount - a.unavailableCount)
+    .slice(0, 10);
+
+  if (stationTop10.length) {
+
+    // ---- Panel 1: ordered by unavailable-bike count (driving route) ----
+    let routeHtml = '<ol>' + stationTop10.map(s =>
+      `<li>${s.name} (Station ${s.id}) — ${s.unavailableCount} unavailable bike(s)</li>`
+    ).join('') + '</ol>';
+
+    // Build a Google Maps "directions" URL:
+    //   origin = fixed start point
+    //   waypoints = all stations except the last one
+    //   destination = the last station in the list
+    const waypoints = stationTop10.slice(0, -1).map(s => `${s.lat},${s.lon}`).join('|');
+    const destination = `${stationTop10[stationTop10.length-1].lat},${stationTop10[stationTop10.length-1].lon}`;
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${START_STR}&destination=${destination}&travelmode=driving`;
+    if (waypoints) url += `&waypoints=${encodeURIComponent(waypoints)}`;
+
+    routeHtml += `<p>Starting point fixed at <code>${START_STR}</code>.</p>`;
+    routeHtml += `<p><a href="${url}" target="_blank">Open driving route in Google Maps</a></p>`;
+    document.getElementById('routePanel').innerHTML = routeHtml;
+
+    // ---- Panel 2: nearest-neighbor route ----
+    // Greedy algorithm: start at the fixed point, repeatedly jump to whichever
+    // remaining station is closest to the CURRENT station (not the original start).
+    // #1 = closest to start. #2 = closest to #1. #3 = closest to #2. etc.
+    const remaining = [...stationTop10]; // working copy we'll remove from
+    const nnRoute = [];
+    let currentLat = START_COORD[0], currentLon = START_COORD[1];
+
+    while (remaining.length) {
+      // Find the index of the remaining station nearest to the current point.
+      let nearestIdx = 0;
+      let nearestDist = haversineMiles(currentLat, currentLon, remaining[0].lat, remaining[0].lon);
+      for (let i = 1; i < remaining.length; i++) {
+        const d = haversineMiles(currentLat, currentLon, remaining[i].lat, remaining[i].lon);
+        if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+      }
+      const next = remaining.splice(nearestIdx, 1)[0];
+      nnRoute.push({ ...next, legDistance: nearestDist }); // distance from the PREVIOUS stop
+      currentLat = next.lat;
+      currentLon = next.lon;
+    }
+
+    let distanceHtml = '<ol>' + nnRoute.map(s =>
+      `<li>${s.name} (Station ${s.id}) — ${s.legDistance.toFixed(2)} mi from previous stop, ${s.unavailableCount} unavailable bike(s)</li>`
+    ).join('') + '</ol>';
+
+    // Build the matching Google Maps driving link for this nearest-neighbor order.
+    const nnWaypoints = nnRoute.slice(0, -1).map(s => `${s.lat},${s.lon}`).join('|');
+    const nnDestination = `${nnRoute[nnRoute.length-1].lat},${nnRoute[nnRoute.length-1].lon}`;
+    let nnUrl = `https://www.google.com/maps/dir/?api=1&origin=${START_STR}&destination=${nnDestination}&travelmode=driving`;
+    if (nnWaypoints) nnUrl += `&waypoints=${encodeURIComponent(nnWaypoints)}`;
+
+    distanceHtml += `<p>Starting point fixed at <code>${START_STR}</code>.</p>`;
+    distanceHtml += `<p><a href="${nnUrl}" target="_blank">Open driving route in Google Maps</a></p>`;
+    document.getElementById('distancePanel').innerHTML = distanceHtml;
+
+    // Update the map markers (uses the count-ordered list; numbering reflects route order).
+    updateMap(stationTop10);
+
+  } else {
+    document.getElementById('routePanel').innerHTML = '<p>No stations currently have unavailable bikes.</p>';
+    document.getElementById('distancePanel').innerHTML = '<p>No stations currently have unavailable bikes.</p>';
+    updateMap([]); // clear any old markers
+  }
+
+  // --- Build the main station table rows ---
+  document.getElementById('tbody').innerHTML = rows.map(s => {
+    // One colored "pill" per bike, showing dock number + availability.
+    const pills = s.bikes.map(b => {
+      const cls = b.isAvailable ? 'p-avail' : 'p-unavail';
+      const elecCls = b.isElectric ? ' p-elec' : '';
+      const title = `Dock ${b.dockNumber}${b.isElectric ? ' (e-bike)' : ' (classic)'}${b.isAvailable ? '' : ' — not rentable'}`;
+      return `<span class="pill ${cls}${elecCls}" title="${title}">${b.dockNumber}</span>`;
+    }).join('');
+
+    return `
+    <tr>
+      <td>${s.id}</td>
+      <td>${s.name}</td>
+      <td>${s.totalBikes}</td>
+      <td>${s.electricBikesAvailable}</td>
+      <td>${s.docksAvailable}</td>
+      <td class="unavail-count">${s.unavailableCount}</td>
+      <td>${pills || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+
+/* =================================================================
+   TABLE SORTING
+   ================================================================= */
+
+// Called when a clickable column header is clicked. Toggles direction if the
+// same column is clicked twice in a row, otherwise switches to the new column
+// (defaulting to descending order).
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; }
+  render();
+}
+
+
+/* =================================================================
+   MAP (Leaflet)
+   ================================================================= */
+
+// Creates the map once on page load: base tile layer, a layer group for
+// station markers, and a fixed marker for the start point.
+function initMap() {
+  map = L.map('map').setView(START_COORD, 12);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  markerLayer = L.layerGroup().addTo(map);
+
+  // Dark dot marker for the fixed starting location.
+  L.marker(START_COORD, {
+    icon: L.divIcon({className: '', html: '<div style="background:#00263a;color:#fff;border-radius:50%;width:14px;height:14px;border:2px solid #fff;"></div>'})
+  }).addTo(map).bindPopup('Start point');
+}
+
+// Redraws the station markers on the map for the given list of
+// most-unavailable stations (no connecting line is drawn — markers only).
+function updateMap(stationList) {
+  markerLayer.clearLayers();
+
+  if (!stationList.length) return;
+
+  stationList.forEach((s, i) => {
+    L.marker([s.lat, s.lon])
+      .addTo(markerLayer)
+      .bindPopup(`#${i+1}: ${s.name} (Station ${s.id})<br>${s.unavailableCount} unavailable bike(s)`);
+  });
+
+  // Zoom/pan the map to fit the start point + all station markers.
+  const points = [START_COORD, ...stationList.map(s => [s.lat, s.lon])];
+  map.fitBounds(L.latLngBounds(points), {padding: [30,30]});
+}
+
+
+/* =================================================================
+   INITIALIZATION
+   ================================================================= */
+
+// Re-render the table whenever the user types in the search box.
+document.getElementById('search').addEventListener('input', render);
+
+initMap();          // set up the Leaflet map
+loadData();         // initial data fetch
+setInterval(loadData, 60000); // auto-refresh every 60 seconds
+</script>
+</body>
+</html>
